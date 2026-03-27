@@ -41,7 +41,7 @@ export async function handleHttpMessage(request: Request, env: Env, hubDO: Durab
     timestamp:       now,
     nonce:           randomHex(16),
     signature:       '',
-    conversation_id: body.conversation_id,
+    conversation_id: body.conversation_id ?? '',
   };
   msg.signature = await signMessage(msg, env.HMAC_SECRET);
 
