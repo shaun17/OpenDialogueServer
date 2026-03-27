@@ -1,0 +1,25 @@
+name = "open-dialogue-server"
+main = "src/index.ts"
+compatibility_date = "2024-10-22"
+compatibility_flags = ["nodejs_compat"]
+
+[[durable_objects.bindings]]
+name = "AGENT_HUB"
+class_name = "AgentHub"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["AgentHub"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "opendialogue-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+[vars]
+MAX_TURNS_DEFAULT = "20"
+RATE_LIMIT_PER_MINUTE = "60"
+OFFLINE_QUEUE_MAX = "200"
+MESSAGE_MAX_BYTES = "65536"
+
+# HMAC_SECRET 通过 wrangler secret put HMAC_SECRET 注入，不写在此处
