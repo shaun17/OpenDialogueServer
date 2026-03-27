@@ -240,8 +240,9 @@ export class AgentHub implements DurableObject {
     const targetConn = this.connections.get(msg.to);
 
     if (targetConn) {
-      // 目标在线：直接转发
-      const delivered: DeliveredMessage = { ...msg, delivered_at: now };
+      // 目标在线：直接转发（用目标的 sessionKey 重签，客户端用 sessionKey 验证）
+      const sig = await signMessage(msg, targetConn.sessionKey);
+      const delivered: DeliveredMessage = { ...msg, signature: sig, delivered_at: now };
       this.send(targetConn.ws, delivered);
       this.sendStatus(senderWs, 'sent', msg.id);
     } else {
@@ -343,14 +344,14 @@ export class AgentHub implements DurableObject {
   private async flushOfflineQueue(
     agentId: string,
     ws: WebSocket,
-    _sessionKey: string,
+    sessionKey: string,
   ): Promise<void> {
     const items = await getPendingMessages(this.env.DB, agentId);
     if (items.length === 0) return;
 
     const deliveredIds: number[] = [];
     for (const item of items) {
-      const delivered: DeliveredMessage = {
+      const base: IncomingMessage = {
         id:              item.message_id,
         from:            item.from_agent_id,
         to:              item.to_agent_id,
@@ -358,10 +359,12 @@ export class AgentHub implements DurableObject {
         content:         item.content,
         timestamp:       item.timestamp,
         nonce:           item.nonce,
-        signature:       item.signature,
+        signature:       '',
         conversation_id: item.conversation_id ?? '',
-        delivered_at:    Date.now(),
       };
+      // 用收件方的 sessionKey 重签，使客户端能用 sessionKey 验证
+      base.signature = await signMessage(base, sessionKey);
+      const delivered: DeliveredMessage = { ...base, delivered_at: Date.now() };
       this.send(ws, delivered);
       deliveredIds.push(item.id);
     }
@@ -385,8 +388,8 @@ export class AgentHub implements DurableObject {
       return Response.json({ status: 'offline' }, { status: 202 });
     }
     const now = Date.now();
-    // 为 HTTP 发送的消息补签名
-    const sig = await signMessage(body, this.env.HMAC_SECRET);
+    // 用目标 Agent 的 sessionKey 签名，客户端用 sessionKey 验证
+    const sig = await signMessage(body, targetConn.sessionKey);
     const delivered: DeliveredMessage = { ...body, signature: sig, delivered_at: now };
     this.send(targetConn.ws, delivered);
     return Response.json({ status: 'sent' });
