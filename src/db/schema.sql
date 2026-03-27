@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS agents (
   version       TEXT NOT NULL DEFAULT '1.0.0',
   capabilities  TEXT NOT NULL DEFAULT '["text"]',  -- JSON array
   description   TEXT,
+  agent_secret  TEXT NOT NULL DEFAULT '',           -- 每个 Agent 独立的连接签名密钥（仅注册时返回一次）
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL
 );

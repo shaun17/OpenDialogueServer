@@ -25,15 +25,17 @@ export async function handleAgentRegister(request: Request, env: Env): Promise<R
     created_at:   now,
     updated_at:   now,
   };
+  const agentSecret = randomHex(32); // 每个 Agent 独立的连接签名密钥，仅此处返回一次
 
   try {
-    await insertAgent(env.DB, card);
+    await insertAgent(env.DB, card, agentSecret);
   } catch (e) {
     console.error('Agent 注册失败:', e);
     return Response.json({ error: '注册失败，请重试' }, { status: 500 });
   }
 
-  return Response.json({ agent_id: card.agent_id, card }, { status: 201 });
+  // agent_secret 仅在注册响应中返回一次，请妥善保存
+  return Response.json({ agent_id: card.agent_id, agent_secret: agentSecret, card }, { status: 201 });
 }
 
 export async function handleAgentGet(agentId: string, env: Env, hubDO: DurableObjectStub): Promise<Response> {

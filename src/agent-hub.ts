@@ -9,7 +9,7 @@ import { RateLimiter } from './security/rate-limiter.js';
 import { verifySignature, signMessage, randomHex } from './security/hmac.js';
 import { validateMessageStructure, castMessage } from './security/validator.js';
 import {
-  getAgent, enqueueOfflineMessage, getPendingMessages, markMessagesDelivered,
+  getAgent, getAgentSecret, enqueueOfflineMessage, getPendingMessages, markMessagesDelivered,
   upsertConversation, incrementTurn, endConversation, insertConvMessage,
   isBlocked,
 } from './db/queries.js';
@@ -89,11 +89,17 @@ export class AgentHub implements DurableObject {
     if (!connSig || !connTs || !connNonce) {
       return new Response('缺少连接签名', { status: 401 });
     }
+
+    // 使用 Agent 自己的独立密钥验证（非全局 HMAC_SECRET）
+    const agentSecret = await getAgentSecret(this.env.DB, agentId);
+    if (!agentSecret) {
+      return new Response('Agent 密钥不存在，请重新注册', { status: 401 });
+    }
     const sigValid = await verifySignature({
       id: agentId, from: agentId, to: 'server',
       type: 'connect', content: 'connect', conversation_id: '',
       timestamp: parseInt(connTs), nonce: connNonce, signature: connSig,
-    }, this.env.HMAC_SECRET);
+    }, agentSecret);
     if (!sigValid) {
       return new Response('连接签名无效', { status: 401 });
     }

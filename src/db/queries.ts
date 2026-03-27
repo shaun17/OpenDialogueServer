@@ -7,19 +7,27 @@ import type { AgentCard, Conversation, OfflineQueueItem } from '../types.js';
 
 // ─── Agent ──────────────────────────────────────────────────────────────────
 
-export async function insertAgent(db: D1Database, card: AgentCard): Promise<void> {
+export async function insertAgent(db: D1Database, card: AgentCard, agentSecret: string): Promise<void> {
   await db.prepare(
-    `INSERT INTO agents (agent_id, name, version, capabilities, description, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO agents (agent_id, name, version, capabilities, description, agent_secret, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     card.agent_id,
     card.name,
     card.version,
     JSON.stringify(card.capabilities),
     card.description ?? null,
+    agentSecret,
     card.created_at,
     card.updated_at,
   ).run();
+}
+
+export async function getAgentSecret(db: D1Database, agentId: string): Promise<string | null> {
+  const row = await db.prepare(
+    `SELECT agent_secret FROM agents WHERE agent_id = ?`
+  ).bind(agentId).first<{ agent_secret: string }>();
+  return row?.agent_secret ?? null;
 }
 
 export async function getAgent(db: D1Database, agentId: string): Promise<AgentCard | null> {
