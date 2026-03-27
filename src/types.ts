@@ -42,7 +42,8 @@ export interface IncomingMessage {
   timestamp: number;
   nonce: string;
   signature: string;
-  conversation_id?: string;
+  conversation_id: string;
+  turn_number?: number; // 发送方本轮轮次，Server 校验与内部计数一致
   max_turns?: number;   // 仅在创建新会话时携带
 }
 

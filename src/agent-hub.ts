@@ -91,8 +91,8 @@ export class AgentHub implements DurableObject {
     }
     const sigValid = await verifySignature({
       id: agentId, from: agentId, to: 'server',
-      content: 'connect', timestamp: parseInt(connTs),
-      nonce: connNonce, signature: connSig,
+      type: 'connect', content: 'connect', conversation_id: '',
+      timestamp: parseInt(connTs), nonce: connNonce, signature: connSig,
     }, this.env.HMAC_SECRET);
     if (!sigValid) {
       return new Response('连接签名无效', { status: 401 });
@@ -286,6 +286,13 @@ export class AgentHub implements DurableObject {
     tracker.lastActivity = Date.now();
     tracker.current += 1;
 
+    // 校验 turn_number 与服务端计数一致（防止客户端伪造轮次）
+    if (msg.turn_number !== undefined && msg.turn_number !== tracker.current) {
+      this.sendError(senderWs, 'INVALID_CONTENT', `turn_number 不匹配，期望 ${tracker.current}，收到 ${msg.turn_number}`);
+      tracker.current -= 1; // 回滚
+      return { ok: false };
+    }
+
     if (tracker.current > tracker.max) {
       // 超过轮次上限
       this.sendError(senderWs, 'CONVERSATION_ENDED', `会话已达到最大轮次 ${tracker.max}，请开启新会话`);
@@ -346,7 +353,7 @@ export class AgentHub implements DurableObject {
         timestamp:       item.timestamp,
         nonce:           item.nonce,
         signature:       item.signature,
-        conversation_id: item.conversation_id,
+        conversation_id: item.conversation_id ?? '',
         delivered_at:    Date.now(),
       };
       this.send(ws, delivered);

@@ -23,14 +23,15 @@ async function importKey(secret: string): Promise<CryptoKey> {
 
 /**
  * 生成消息签名
- * 签名材料: id|from|to|content|timestamp|nonce
+ * 签名材料: id|from|to|type|content|conversation_id[|turn_number]|timestamp|nonce
  */
 export async function signMessage(
-  params: { id: string; from: string; to: string; content: string; timestamp: number; nonce: string },
+  params: { id: string; from: string; to: string; type: string; content: string; conversation_id: string; turn_number?: number; timestamp: number; nonce: string },
   secret: string,
 ): Promise<string> {
   const key = await importKey(secret);
-  const material = `${params.id}|${params.from}|${params.to}|${params.content}|${params.timestamp}|${params.nonce}`;
+  const turnMaterial = params.turn_number !== undefined ? `|${params.turn_number}` : '';
+  const material = `${params.id}|${params.from}|${params.to}|${params.type}|${params.content}|${params.conversation_id}${turnMaterial}|${params.timestamp}|${params.nonce}`;
   const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(material));
   return Array.from(new Uint8Array(sig))
     .map(b => b.toString(16).padStart(2, '0'))
@@ -41,12 +42,13 @@ export async function signMessage(
  * 校验消息签名（timing-safe）
  */
 export async function verifySignature(
-  params: { id: string; from: string; to: string; content: string; timestamp: number; nonce: string; signature: string },
+  params: { id: string; from: string; to: string; type: string; content: string; conversation_id: string; turn_number?: number; timestamp: number; nonce: string; signature: string },
   secret: string,
 ): Promise<boolean> {
   try {
     const key = await importKey(secret);
-    const material = `${params.id}|${params.from}|${params.to}|${params.content}|${params.timestamp}|${params.nonce}`;
+    const turnMaterial = params.turn_number !== undefined ? `|${params.turn_number}` : '';
+    const material = `${params.id}|${params.from}|${params.to}|${params.type}|${params.content}|${params.conversation_id}${turnMaterial}|${params.timestamp}|${params.nonce}`;
     const sigBytes = hexToBytes(params.signature);
     if (!sigBytes) return false;
     return await crypto.subtle.verify('HMAC', key, sigBytes, new TextEncoder().encode(material));

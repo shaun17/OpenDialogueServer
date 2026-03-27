@@ -18,7 +18,9 @@ function makeMsg(overrides: Record<string, unknown> = {}) {
     id: 'aabbccdd11223344',
     from: 'agent-a',
     to: 'agent-b',
+    type: 'text',
     content: 'hello',
+    conversation_id: 'conv-test-1',
     timestamp: Date.now(),
     nonce: randomHex(16),
     ...overrides,
@@ -121,6 +123,7 @@ describe('validateMessageStructure', () => {
       to: 'agent-b',
       type: 'text',
       content: 'hello world',
+      conversation_id: 'conv-test-1',
       timestamp: Date.now(),
       nonce: 'aabbccddeeff00112233445566778899',
       signature: 'a'.repeat(64),
@@ -184,10 +187,11 @@ describe('validateMessageStructure', () => {
   });
 
   it('castMessage 正确转型', () => {
-    const raw = validRaw({ conversation_id: 'conv-123', max_turns: 10 });
+    const raw = validRaw({ conversation_id: 'conv-123', max_turns: 10, turn_number: 2 });
     const msg = castMessage(raw);
     expect(msg.id).toBe(raw.id);
     expect(msg.conversation_id).toBe('conv-123');
+    expect(msg.turn_number).toBe(2);
     expect(msg.max_turns).toBe(10);
   });
 });

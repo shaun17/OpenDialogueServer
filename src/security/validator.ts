@@ -31,7 +31,7 @@ export function validateMessageStructure(
   const msg = raw as Record<string, unknown>;
 
   // 1. 必填字段完整性
-  const required = ['id', 'from', 'to', 'type', 'content', 'timestamp', 'nonce', 'signature'];
+  const required = ['id', 'from', 'to', 'type', 'content', 'timestamp', 'nonce', 'signature', 'conversation_id'];
   for (const field of required) {
     if (msg[field] === undefined || msg[field] === null) {
       return { ok: false, code: 'INVALID_CONTENT', message: `缺少必填字段: ${field}` };
@@ -42,8 +42,14 @@ export function validateMessageStructure(
   if (typeof msg['id'] !== 'string' || typeof msg['from'] !== 'string' ||
       typeof msg['to'] !== 'string' || typeof msg['type'] !== 'string' ||
       typeof msg['content'] !== 'string' || typeof msg['timestamp'] !== 'number' ||
-      typeof msg['nonce'] !== 'string' || typeof msg['signature'] !== 'string') {
+      typeof msg['nonce'] !== 'string' || typeof msg['signature'] !== 'string' ||
+      typeof msg['conversation_id'] !== 'string') {
     return { ok: false, code: 'INVALID_CONTENT', message: '字段类型错误' };
+  }
+
+  // 2a. turn_number 类型检查（可选）
+  if (msg['turn_number'] !== undefined && (typeof msg['turn_number'] !== 'number' || !Number.isInteger(msg['turn_number']) || (msg['turn_number'] as number) <= 0)) {
+    return { ok: false, code: 'INVALID_CONTENT', message: 'turn_number 必须是正整数' };
   }
 
   // 3. 消息类型白名单
@@ -83,7 +89,8 @@ export function castMessage(raw: Record<string, unknown>): IncomingMessage {
     timestamp: raw['timestamp'] as number,
     nonce: raw['nonce'] as string,
     signature: raw['signature'] as string,
-    conversation_id: typeof raw['conversation_id'] === 'string' ? raw['conversation_id'] : undefined,
+    conversation_id: raw['conversation_id'] as string,
+    turn_number: typeof raw['turn_number'] === 'number' ? raw['turn_number'] : undefined,
     max_turns: typeof raw['max_turns'] === 'number' ? raw['max_turns'] : undefined,
   };
 }
