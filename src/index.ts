@@ -8,6 +8,11 @@
  *   PATCH /api/agent/:id/card            → 更新 Agent Card
  *   POST /api/agent/:id/block            → 添加黑名单
  *   DELETE /api/agent/:id/block          → 移除黑名单
+ *   GET  /api/agent/:id/block            → 查询黑名单
+ *   POST /api/agent/:id/allow            → 添加白名单
+ *   DELETE /api/agent/:id/allow          → 移除白名单
+ *   GET  /api/agent/:id/allow            → 查询白名单
+ *   PUT  /api/agent/:id/allowlist-mode   → 开关白名单模式
  *   POST /api/message                    → HTTP 发消息（补充接口）
  *   GET  /api/conversation/:id/history   → 会话历史查询
  */
@@ -20,6 +25,11 @@ import {
   handleAgentUpdate,
   handleAddBlock,
   handleRemoveBlock,
+  handleGetBlocklist,
+  handleAddAllow,
+  handleRemoveAllow,
+  handleGetAllowlist,
+  handleSetAllowlistMode,
 } from './routes/agent.js';
 import { handleHttpMessage } from './routes/message.js';
 import { handleConversationHistory } from './routes/conversation.js';
@@ -81,6 +91,36 @@ export default {
       const blockRemoveMatch = path.match(/^\/api\/agent\/([^/]+)\/block$/);
       if (method === 'DELETE' && blockRemoveMatch) {
         return handleRemoveBlock(blockRemoveMatch[1]!, request, env);
+      }
+
+      // GET /api/agent/:id/block
+      const blockGetMatch = path.match(/^\/api\/agent\/([^/]+)\/block$/);
+      if (method === 'GET' && blockGetMatch) {
+        return handleGetBlocklist(blockGetMatch[1]!, env);
+      }
+
+      // POST /api/agent/:id/allow
+      const allowAddMatch = path.match(/^\/api\/agent\/([^/]+)\/allow$/);
+      if (method === 'POST' && allowAddMatch) {
+        return handleAddAllow(allowAddMatch[1]!, request, env);
+      }
+
+      // DELETE /api/agent/:id/allow
+      const allowRemoveMatch = path.match(/^\/api\/agent\/([^/]+)\/allow$/);
+      if (method === 'DELETE' && allowRemoveMatch) {
+        return handleRemoveAllow(allowRemoveMatch[1]!, request, env);
+      }
+
+      // GET /api/agent/:id/allow
+      const allowGetMatch = path.match(/^\/api\/agent\/([^/]+)\/allow$/);
+      if (method === 'GET' && allowGetMatch) {
+        return handleGetAllowlist(allowGetMatch[1]!, env);
+      }
+
+      // PUT /api/agent/:id/allowlist-mode
+      const allowlistModeMatch = path.match(/^\/api\/agent\/([^/]+)\/allowlist-mode$/);
+      if (method === 'PUT' && allowlistModeMatch) {
+        return handleSetAllowlistMode(allowlistModeMatch[1]!, request, env);
       }
 
       // POST /api/message

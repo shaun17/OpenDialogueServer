@@ -282,3 +282,83 @@ export async function removeBlock(
     `DELETE FROM blocklist WHERE blocker_id = ? AND blocked_id = ?`
   ).bind(blockerId, blockedId).run();
 }
+
+export async function getBlocklist(
+  db: D1Database,
+  agentId: string,
+): Promise<{ blocked_id: string; reason: string | null; created_at: number }[]> {
+  const rows = await db.prepare(
+    `SELECT blocked_id, reason, created_at FROM blocklist WHERE blocker_id = ? ORDER BY created_at DESC`
+  ).bind(agentId).all<Record<string, unknown>>();
+  return (rows.results ?? []).map(r => ({
+    blocked_id: r['blocked_id'] as string,
+    reason:     r['reason'] as string | null,
+    created_at: r['created_at'] as number,
+  }));
+}
+
+// ─── 白名单 ──────────────────────────────────────────────────────────────────
+
+export async function isAllowlistEnabled(
+  db: D1Database,
+  agentId: string,
+): Promise<boolean> {
+  const row = await db.prepare(
+    `SELECT allowlist_enabled FROM agents WHERE agent_id = ?`
+  ).bind(agentId).first<{ allowlist_enabled: number }>();
+  return row?.allowlist_enabled === 1;
+}
+
+export async function setAllowlistEnabled(
+  db: D1Database,
+  agentId: string,
+  enabled: boolean,
+): Promise<void> {
+  await db.prepare(
+    `UPDATE agents SET allowlist_enabled = ?, updated_at = ? WHERE agent_id = ?`
+  ).bind(enabled ? 1 : 0, Date.now(), agentId).run();
+}
+
+export async function isAllowed(
+  db: D1Database,
+  agentId: string,
+  allowedId: string,
+): Promise<boolean> {
+  const row = await db.prepare(
+    `SELECT 1 FROM allowlist WHERE agent_id = ? AND allowed_id = ?`
+  ).bind(agentId, allowedId).first();
+  return row !== null;
+}
+
+export async function addAllow(
+  db: D1Database,
+  agentId: string,
+  allowedId: string,
+): Promise<void> {
+  await db.prepare(
+    `INSERT OR IGNORE INTO allowlist (agent_id, allowed_id, created_at) VALUES (?, ?, ?)`
+  ).bind(agentId, allowedId, Date.now()).run();
+}
+
+export async function removeAllow(
+  db: D1Database,
+  agentId: string,
+  allowedId: string,
+): Promise<void> {
+  await db.prepare(
+    `DELETE FROM allowlist WHERE agent_id = ? AND allowed_id = ?`
+  ).bind(agentId, allowedId).run();
+}
+
+export async function getAllowlist(
+  db: D1Database,
+  agentId: string,
+): Promise<{ allowed_id: string; created_at: number }[]> {
+  const rows = await db.prepare(
+    `SELECT allowed_id, created_at FROM allowlist WHERE agent_id = ? ORDER BY created_at DESC`
+  ).bind(agentId).all<Record<string, unknown>>();
+  return (rows.results ?? []).map(r => ({
+    allowed_id: r['allowed_id'] as string,
+    created_at: r['created_at'] as number,
+  }));
+}

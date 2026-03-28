@@ -81,3 +81,18 @@ CREATE TABLE IF NOT EXISTS blocklist (
 
 CREATE INDEX IF NOT EXISTS idx_blocklist_blocker
   ON blocklist (blocker_id, blocked_id);
+
+-- 白名单表（开启后，只接受名单内 agent 的消息）
+CREATE TABLE IF NOT EXISTS allowlist (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  agent_id      TEXT NOT NULL,     -- 设置白名单的一方
+  allowed_id    TEXT NOT NULL,     -- 被允许发送消息的一方
+  created_at    INTEGER NOT NULL,
+  UNIQUE (agent_id, allowed_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_allowlist_agent
+  ON allowlist (agent_id, allowed_id);
+
+-- agents 表追加白名单开关（已有表用 ALTER TABLE）
+-- allowlist_enabled 默认 0 (false)，设为 1 时启用白名单过滤

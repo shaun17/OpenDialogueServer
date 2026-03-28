@@ -11,7 +11,7 @@ import { validateMessageStructure, castMessage } from './security/validator.js';
 import {
   getAgent, getAgentSecret, enqueueOfflineMessage, getPendingMessages, markMessagesDelivered,
   upsertConversation, incrementTurn, endConversation, insertConvMessage,
-  isBlocked,
+  isBlocked, isAllowlistEnabled, isAllowed,
 } from './db/queries.js';
 import type {
   Env, ConnectedAgent, IncomingMessage,
@@ -179,6 +179,16 @@ export class AgentHub implements DurableObject {
     if (blocked) {
       this.sendError(ws, 'AGENT_BLOCKED', '对方已将你加入黑名单');
       return;
+    }
+
+    // 7. 白名单检查（目标方开启白名单时，发送方必须在名单内）
+    const allowlistOn = await isAllowlistEnabled(this.env.DB, msg.to);
+    if (allowlistOn) {
+      const allowed = await isAllowed(this.env.DB, msg.to, msg.from);
+      if (!allowed) {
+        this.sendError(ws, 'NOT_IN_ALLOWLIST', '对方已开启白名单，你不在允许列表中');
+        return;
+      }
     }
 
     // ── 消息类型路由 ──────────────────────────────────────────────────────

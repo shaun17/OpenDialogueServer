@@ -3,7 +3,11 @@
  */
 
 import { randomHex } from '../security/hmac.js';
-import { insertAgent, getAgent, updateAgentCard, addBlock, removeBlock } from '../db/queries.js';
+import {
+  insertAgent, getAgent, updateAgentCard,
+  addBlock, removeBlock, getBlocklist,
+  addAllow, removeAllow, getAllowlist, setAllowlistEnabled, isAllowlistEnabled,
+} from '../db/queries.js';
 import type { Env, AgentCard } from '../types.js';
 
 export async function handleAgentRegister(request: Request, env: Env): Promise<Response> {
@@ -97,4 +101,50 @@ export async function handleRemoveBlock(
   }
   await removeBlock(env.DB, blockerId, blocked_id);
   return Response.json({ ok: true });
+}
+
+export async function handleGetBlocklist(agentId: string, env: Env): Promise<Response> {
+  const list = await getBlocklist(env.DB, agentId);
+  return Response.json({ agent_id: agentId, blocklist: list });
+}
+
+// ─── 白名单 ──────────────────────────────────────────────────────────────────
+
+export async function handleAddAllow(
+  agentId: string, request: Request, env: Env,
+): Promise<Response> {
+  const { allowed_id } = await request.json<{ allowed_id?: string }>();
+  if (!allowed_id) {
+    return Response.json({ error: '缺少 allowed_id' }, { status: 400 });
+  }
+  await addAllow(env.DB, agentId, allowed_id);
+  return Response.json({ ok: true });
+}
+
+export async function handleRemoveAllow(
+  agentId: string, request: Request, env: Env,
+): Promise<Response> {
+  const { allowed_id } = await request.json<{ allowed_id?: string }>();
+  if (!allowed_id) {
+    return Response.json({ error: '缺少 allowed_id' }, { status: 400 });
+  }
+  await removeAllow(env.DB, agentId, allowed_id);
+  return Response.json({ ok: true });
+}
+
+export async function handleGetAllowlist(agentId: string, env: Env): Promise<Response> {
+  const enabled = await isAllowlistEnabled(env.DB, agentId);
+  const list = await getAllowlist(env.DB, agentId);
+  return Response.json({ agent_id: agentId, allowlist_enabled: enabled, allowlist: list });
+}
+
+export async function handleSetAllowlistMode(
+  agentId: string, request: Request, env: Env,
+): Promise<Response> {
+  const { enabled } = await request.json<{ enabled?: boolean }>();
+  if (typeof enabled !== 'boolean') {
+    return Response.json({ error: 'enabled 必须是 boolean' }, { status: 400 });
+  }
+  await setAllowlistEnabled(env.DB, agentId, enabled);
+  return Response.json({ ok: true, allowlist_enabled: enabled });
 }
