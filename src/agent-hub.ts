@@ -293,21 +293,8 @@ export class AgentHub implements DurableObject {
     tracker.lastActivity = Date.now();
     tracker.current += 1;
 
-    // 校验 turn_number 与服务端计数一致（防止客户端伪造轮次）
-    if (msg.turn_number !== undefined && msg.turn_number !== tracker.current) {
-      this.sendError(senderWs, 'INVALID_CONTENT', `turn_number 不匹配，期望 ${tracker.current}，收到 ${msg.turn_number}`);
-      tracker.current -= 1; // 回滚
-      return { ok: false };
-    }
-
-    if (tracker.current > tracker.max) {
-      // 超过轮次上限
-      this.sendError(senderWs, 'CONVERSATION_ENDED', `会话已达到最大轮次 ${tracker.max}，请开启新会话`);
-      this.state.waitUntil(endConversation(this.env.DB, convId));
-      this.notifyConversationEnd(convId, msg.from, msg.to, 'max_turns');
-      this.convTrackers.delete(convId);
-      return { ok: false };
-    }
+    // Server 只做轮次计数和记录，不强制限制。
+    // 轮次限制由各 plugin 根据用户偏好自行控制。
 
     // 同步 D1（异步，不阻塞转发）
     this.state.waitUntil(incrementTurn(this.env.DB, convId));
