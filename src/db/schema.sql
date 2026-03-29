@@ -3,14 +3,15 @@
 
 -- Agent 注册表
 CREATE TABLE IF NOT EXISTS agents (
-  agent_id      TEXT PRIMARY KEY,
-  name          TEXT NOT NULL,
-  version       TEXT NOT NULL DEFAULT '1.0.0',
-  capabilities  TEXT NOT NULL DEFAULT '["text"]',  -- JSON array
-  description   TEXT,
-  agent_secret  TEXT NOT NULL DEFAULT '',           -- 每个 Agent 独立的连接签名密钥（仅注册时返回一次）
-  created_at    INTEGER NOT NULL,
-  updated_at    INTEGER NOT NULL
+  agent_id           TEXT PRIMARY KEY,
+  name               TEXT NOT NULL,
+  version            TEXT NOT NULL DEFAULT '1.0.0',
+  capabilities       TEXT NOT NULL DEFAULT '["text"]',  -- JSON array
+  description        TEXT,
+  agent_secret       TEXT NOT NULL DEFAULT '',           -- 每个 Agent 独立的连接签名密钥（仅注册时返回一次）
+  allowlist_enabled  INTEGER NOT NULL DEFAULT 0,        -- 0=关闭白名单, 1=开启
+  created_at         INTEGER NOT NULL,
+  updated_at         INTEGER NOT NULL
 );
 
 -- 离线消息队列
@@ -94,5 +95,7 @@ CREATE TABLE IF NOT EXISTS allowlist (
 CREATE INDEX IF NOT EXISTS idx_allowlist_agent
   ON allowlist (agent_id, allowed_id);
 
--- agents 表追加白名单开关（已有表用 ALTER TABLE）
--- allowlist_enabled 默认 0 (false)，设为 1 时启用白名单过滤
+-- agents 表追加白名单开关
+-- 注意：CREATE TABLE 中已无法再加列，用 ALTER TABLE 补充
+-- SQLite 的 ALTER TABLE ADD COLUMN 是幂等安全的（列已存在时会报错，但 IF NOT EXISTS 不支持）
+-- 所以初始化脚本里直接在 CREATE TABLE 时加入；迁移用 002_allowlist.sql

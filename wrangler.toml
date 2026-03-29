@@ -9,17 +9,22 @@ class_name = "AgentHub"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["AgentHub"]
+new_sqlite_classes = ["AgentHub"]
 
 [[d1_databases]]
 binding = "DB"
 database_name = "opendialogue-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "e3069db0-7f23-4816-87bc-447300091115"
 
 [vars]
 MAX_TURNS_DEFAULT = "20"
 RATE_LIMIT_PER_MINUTE = "60"
-OFFLINE_QUEUE_MAX = "200"
+OFFLINE_QUEUE_MAX = "10"
 MESSAGE_MAX_BYTES = "65536"
 
 # HMAC_SECRET 通过 wrangler secret put HMAC_SECRET 注入，不写在此处
+
+# 自定义域名（需要域名已在 Cloudflare 上）
+[[routes]]
+pattern = "od.wenmsg.fun"
+custom_domain = true

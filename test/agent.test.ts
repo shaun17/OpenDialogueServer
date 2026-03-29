@@ -185,4 +185,142 @@ describe('黑名单管理', () => {
     });
     expect(resp.status).toBe(400);
   });
+
+  it('查询黑名单返回列表', async () => {
+    // 先添加一条
+    await worker.fetch(`/api/agent/${blockerId}/block`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blocked_id: blockedId, reason: '查询测试' }),
+    });
+    const resp = await worker.fetch(`/api/agent/${blockerId}/block`);
+    expect(resp.status).toBe(200);
+    const body = await resp.json() as { agent_id: string; blocklist: { blocked_id: string }[] };
+    expect(body.agent_id).toBe(blockerId);
+    expect(body.blocklist.some((b: { blocked_id: string }) => b.blocked_id === blockedId)).toBe(true);
+    // 清理
+    await worker.fetch(`/api/agent/${blockerId}/block`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blocked_id: blockedId }),
+    });
+  });
+});
+
+// ─── agent_id 格式 ──────────────────────────────────────────────────────────
+
+describe('agent_id 格式', () => {
+  it('注册生成的 agent_id 应为 8 位数字', async () => {
+    const resp = await worker.fetch('/api/agent/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'format-test-agent' }),
+    });
+    const body = await resp.json() as { agent_id: string };
+    expect(body.agent_id).toMatch(/^\d{8}$/);
+  });
+});
+
+// ─── 白名单 ──────────────────────────────────────────────────────────────────
+
+describe('白名单管理', () => {
+  let ownerId: string;
+  let friendId: string;
+  let strangerId: string;
+
+  beforeAll(async () => {
+    const [r1, r2, r3] = await Promise.all([
+      worker.fetch('/api/agent/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'allowlist-owner' }),
+      }),
+      worker.fetch('/api/agent/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'allowlist-friend' }),
+      }),
+      worker.fetch('/api/agent/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'allowlist-stranger' }),
+      }),
+    ]);
+    ownerId = ((await r1.json()) as { agent_id: string }).agent_id;
+    friendId = ((await r2.json()) as { agent_id: string }).agent_id;
+    strangerId = ((await r3.json()) as { agent_id: string }).agent_id;
+  });
+
+  it('默认白名单模式关闭', async () => {
+    const resp = await worker.fetch(`/api/agent/${ownerId}/allow`);
+    expect(resp.status).toBe(200);
+    const body = await resp.json() as { allowlist_enabled: boolean; allowlist: unknown[] };
+    expect(body.allowlist_enabled).toBe(false);
+    expect(body.allowlist).toEqual([]);
+  });
+
+  it('添加白名单返回 ok', async () => {
+    const resp = await worker.fetch(`/api/agent/${ownerId}/allow`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ allowed_id: friendId }),
+    });
+    expect(resp.status).toBe(200);
+    expect(((await resp.json()) as { ok: boolean }).ok).toBe(true);
+  });
+
+  it('查询白名单包含已添加的 agent', async () => {
+    const resp = await worker.fetch(`/api/agent/${ownerId}/allow`);
+    const body = await resp.json() as { allowlist: { allowed_id: string }[] };
+    expect(body.allowlist.some((a: { allowed_id: string }) => a.allowed_id === friendId)).toBe(true);
+  });
+
+  it('开启白名单模式', async () => {
+    const resp = await worker.fetch(`/api/agent/${ownerId}/allowlist-mode`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true }),
+    });
+    expect(resp.status).toBe(200);
+    const body = await resp.json() as { allowlist_enabled: boolean };
+    expect(body.allowlist_enabled).toBe(true);
+  });
+
+  it('enabled 字段非 boolean 返回 400', async () => {
+    const resp = await worker.fetch(`/api/agent/${ownerId}/allowlist-mode`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: 'yes' }),
+    });
+    expect(resp.status).toBe(400);
+  });
+
+  it('缺少 allowed_id 返回 400', async () => {
+    const resp = await worker.fetch(`/api/agent/${ownerId}/allow`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(resp.status).toBe(400);
+  });
+
+  it('移除白名单返回 ok', async () => {
+    const resp = await worker.fetch(`/api/agent/${ownerId}/allow`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ allowed_id: friendId }),
+    });
+    expect(resp.status).toBe(200);
+    expect(((await resp.json()) as { ok: boolean }).ok).toBe(true);
+  });
+
+  it('关闭白名单模式', async () => {
+    const resp = await worker.fetch(`/api/agent/${ownerId}/allowlist-mode`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: false }),
+    });
+    const body = await resp.json() as { allowlist_enabled: boolean };
+    expect(body.allowlist_enabled).toBe(false);
+  });
 });

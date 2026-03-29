@@ -104,6 +104,62 @@ describe('GET /api/conversation/:id/history', () => {
     const resp = await worker.fetch('/api/conversation/nonexistent-conv/history');
     expect(resp.status).toBe(404);
   });
+
+  it('发送消息后可查询会话历史', async () => {
+    const [senderId, receiverId] = await Promise.all([
+      registerAgent('history-sender'),
+      registerAgent('history-receiver'),
+    ]);
+    const convId = 'test-conv-history-' + Date.now();
+
+    // 发送一条消息（会自动创建会话并存储消息）
+    const sendResp = await worker.fetch('/api/message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: senderId,
+        to: receiverId,
+        content: '历史消息测试',
+        conversation_id: convId,
+      }),
+    });
+    expect(sendResp.status).toBe(202);
+
+    // 查询历史
+    const histResp = await worker.fetch(`/api/conversation/${convId}/history`);
+    expect(histResp.status).toBe(200);
+    const body = await histResp.json() as { conversation: unknown; messages: { content: string; from_agent_id: string }[]; total: number };
+    expect(body.conversation).toBeDefined();
+    expect(body.total).toBeGreaterThanOrEqual(1);
+    expect(body.messages[0].content).toBe('历史消息测试');
+    expect(body.messages[0].from_agent_id).toBe(senderId);
+  });
+
+  it('支持 last 参数限制返回条数', async () => {
+    const [senderId, receiverId] = await Promise.all([
+      registerAgent('last-sender'),
+      registerAgent('last-receiver'),
+    ]);
+    const convId = 'test-conv-last-' + Date.now();
+
+    // 发送 3 条消息
+    for (let i = 0; i < 3; i++) {
+      await worker.fetch('/api/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: senderId,
+          to: receiverId,
+          content: `消息 ${i + 1}`,
+          conversation_id: convId,
+        }),
+      });
+    }
+
+    const resp = await worker.fetch(`/api/conversation/${convId}/history?last=2`);
+    const body = await resp.json() as { messages: unknown[]; total: number };
+    expect(body.total).toBe(2);
+  });
 });
 
 // ─── 路由规则验证 ─────────────────────────────────────────────────────────────

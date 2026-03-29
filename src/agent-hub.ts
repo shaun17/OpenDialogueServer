@@ -257,7 +257,7 @@ export class AgentHub implements DurableObject {
       this.sendStatus(senderWs, 'sent', msg.id);
     } else {
       // 目标离线：入队 + 通知发送方
-      const maxQueue = parseInt(this.env.OFFLINE_QUEUE_MAX ?? '200');
+      const maxQueue = parseInt(this.env.OFFLINE_QUEUE_MAX ?? '10');
       this.state.waitUntil(
         enqueueOfflineMessage(this.env.DB, {
           conversation_id: msg.conversation_id,
@@ -380,11 +380,58 @@ export class AgentHub implements DurableObject {
 
   private async handleHttpSend(request: Request): Promise<Response> {
     const body = await request.json<IncomingMessage>();
+    const now = Date.now();
+
+    // 会话追踪 + 消息存储（与 WebSocket routeMessage 一致）
+    if (body.conversation_id) {
+      const convId = body.conversation_id;
+      let tracker = this.convTrackers.get(convId);
+      if (!tracker) {
+        const maxTurns = body.max_turns ?? parseInt(this.env.MAX_TURNS_DEFAULT ?? '20');
+        tracker = { current: 0, max: maxTurns, lastActivity: now };
+        this.convTrackers.set(convId, tracker);
+        await upsertConversation(this.env.DB, {
+          conversation_id: convId,
+          initiator_id:    body.from,
+          participant_id:  body.to,
+          max_turns:       maxTurns,
+          created_at:      now,
+        });
+      }
+      tracker.lastActivity = now;
+      tracker.current += 1;
+      this.state.waitUntil(incrementTurn(this.env.DB, convId));
+      this.state.waitUntil(
+        insertConvMessage(this.env.DB, {
+          conversation_id: convId,
+          turn_number:     tracker.current,
+          from_agent_id:   body.from,
+          type:            body.type,
+          content:         body.content,
+          timestamp:       body.timestamp,
+        })
+      );
+    }
+
     const targetConn = this.connections.get(body.to);
     if (!targetConn) {
+      // 目标离线：入离线队列，上线后自动推送
+      const maxQueue = parseInt(this.env.OFFLINE_QUEUE_MAX ?? '10');
+      this.state.waitUntil(
+        enqueueOfflineMessage(this.env.DB, {
+          conversation_id: body.conversation_id,
+          from_agent_id:   body.from,
+          to_agent_id:     body.to,
+          message_id:      body.id,
+          type:            body.type,
+          content:         body.content,
+          timestamp:       body.timestamp,
+          nonce:           body.nonce,
+          signature:       body.signature,
+        }, maxQueue)
+      );
       return Response.json({ status: 'offline' }, { status: 202 });
     }
-    const now = Date.now();
     // 用目标 Agent 的 sessionKey 签名，客户端用 sessionKey 验证
     const sig = await signMessage(body, targetConn.sessionKey);
     const delivered: DeliveredMessage = { ...body, signature: sig, delivered_at: now };
