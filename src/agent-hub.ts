@@ -300,11 +300,17 @@ export class AgentHub implements DurableObject {
       });
     }
 
+    // 超出轮次上限：拒绝转发，通知双方会话已结束
+    if (tracker.current >= tracker.max) {
+      this.sendError(senderWs, 'CONVERSATION_ENDED', `会话已达到最大轮次 ${tracker.max}`);
+      this.notifyConversationEnd(convId, msg.from, msg.to, 'max_turns');
+      this.convTrackers.delete(convId);
+      this.state.waitUntil(endConversation(this.env.DB, convId));
+      return { ok: false };
+    }
+
     tracker.lastActivity = Date.now();
     tracker.current += 1;
-
-    // Server 只做轮次计数和记录，不强制限制。
-    // 轮次限制由各 plugin 根据用户偏好自行控制。
 
     // 同步 D1（异步，不阻塞转发）
     this.state.waitUntil(incrementTurn(this.env.DB, convId));
